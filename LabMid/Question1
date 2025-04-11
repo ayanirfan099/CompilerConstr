@@ -1,0 +1,105 @@
+using System;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        // Assuming student ID ends with 23 (you can replace this with actual last two digits)
+        int studentIdSuffix = 23;
+
+        // Creating a variable name using student ID (not used further in code)
+        string var23 = "var" + studentIdSuffix;
+
+        // Input string simulating variable declarations and an arithmetic expression
+        string input = "x:userinput; y:userinptut; z:4; result: x * y + z;";
+        
+        // Display the original input string to the user
+        Console.WriteLine($"Original input: {input}\n");
+        
+        try
+        {
+            // Dictionary to store variable names and their corresponding numeric values
+            Dictionary<string, double> variables = new Dictionary<string, double>();
+
+            // Regex to match patterns like "x:userinput;" or "z:4;"
+            var matches = Regex.Matches(input, @"(\w+):([^;]+);");
+            
+            // Loop through each match found
+            foreach (Match match in matches)
+            {
+                string varName = match.Groups[1].Value;   // Extract variable name (e.g., x, y, z)
+                string varValue = match.Groups[2].Value.Trim(); // Extract value (e.g., userinput, 4)
+                
+                // Skip the result part, which is an expression not a single value
+                if (varName == "result") continue;
+
+                // Prompt user to enter value if "userinput" or a typo version is used
+                if (varValue == "userinput" || varValue == "userinptut")
+                {
+                    Console.Write($"Enter value for {varName}: ");
+                    varValue = Console.ReadLine(); // Read input from the user
+                }
+                
+                // Try to convert the input to a double
+                if (double.TryParse(varValue, out double value))
+                {
+                    variables.Add(varName, value); // Store variable and its value
+                }
+                else
+                {
+                    // Warn if conversion to number fails
+                    Console.WriteLine($"Warning: Could not parse value for {varName}");
+                }
+            }
+            
+            // Use regex to extract the result expression, e.g., "x * y + z"
+            var resultMatch = Regex.Match(input, @"result:\s*(.+);");
+            if (!resultMatch.Success)
+            {
+                throw new FormatException("Result expression not found");
+            }
+            string operation = resultMatch.Groups[1].Value;
+            
+            // Replace variable names in the expression with their actual numeric values
+            string expression = operation;
+            foreach (var variable in variables)
+            {
+                expression = expression.Replace(variable.Key, variable.Value.ToString());
+            }
+            
+            // Evaluate the final arithmetic expression
+            double result = EvaluateExpression(expression);
+            
+            // Display all variable names and their values
+            foreach (var variable in variables)
+            {
+                Console.WriteLine($"{variable.Key} = {variable.Value}");
+            }
+            
+            // Print the computed result
+            Console.WriteLine($"Result = {result}");
+        }
+        catch (Exception ex)
+        {
+            // Catch and display any errors during processing
+            Console.WriteLine($"Error processing input: {ex.Message}");
+        }
+    }
+    
+    // Simple method to evaluate arithmetic expressions using DataTable
+    static double EvaluateExpression(string expression)
+    {
+        // Create a DataTable to use its Compute method for basic arithmetic
+        System.Data.DataTable table = new System.Data.DataTable();
+
+        // Add expression column and evaluate it using a row
+        table.Columns.Add("expression", typeof(string), expression);
+        System.Data.DataRow row = table.NewRow();
+        table.Rows.Add(row);
+
+        // Return the result after evaluation
+        return double.Parse((string)row["expression"]);
+    }
+}
