@@ -1,0 +1,255 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+// Class to analyze grammar: check left recursion, compute FIRST and FOLLOW sets
+class GrammarAnalyzer
+{
+    // Dictionary to store grammar rules: Non-terminal → List of Productions
+    private Dictionary<string, List<string>> rules = new Dictionary<string, List<string>>();
+
+    private string startSymbol = "E"; // Start symbol is hardcoded as per question
+
+    // Add a grammar rule to the dictionary
+    public void AddRule(string rule)
+    {
+        // Split rule by "→" or "->" into LHS and RHS
+        var parts = rule.Split(new[] { "→", "->" }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2)
+        {
+            Console.WriteLine($"Invalid rule format: {rule}");
+            return;
+        }
+
+        string lhs = parts[0].Trim(); // Left-hand side (Non-terminal)
+        string[] rhsProductions = parts[1].Split('|').Select(p => p.Trim()).ToArray(); // RHS productions
+
+        if (!rules.ContainsKey(lhs))
+        {
+            rules[lhs] = new List<string>();
+        }
+
+        // Add each production to the list for the LHS
+        foreach (var production in rhsProductions)
+        {
+            rules[lhs].Add(production);
+        }
+    }
+
+    // Check for direct left recursion: A → Aα
+    public bool HasLeftRecursion()
+    {
+        foreach (var rule in rules)
+        {
+            foreach (var production in rule.Value)
+            {
+                string[] symbols = production.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (symbols.Length > 0 && symbols[0] == rule.Key)
+                {
+                    return true; // Found left recursion
+                }
+            }
+        }
+        return false; // No left recursion
+    }
+
+    // Compute FIRST sets for all non-terminals
+    public Dictionary<string, HashSet<string>> ComputeFirstSets()
+    {
+        var first = new Dictionary<string, HashSet<string>>();
+
+        // Initialize first sets for all non-terminals
+        foreach (var nonTerminal in rules.Keys)
+        {
+            first[nonTerminal] = new HashSet<string>();
+        }
+
+        bool changed;
+        do
+        {
+            changed = false;
+
+            foreach (var rule in rules)
+            {
+                string A = rule.Key;
+
+                foreach (var production in rule.Value)
+                {
+                    string[] symbols = production.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    foreach (string symbol in symbols)
+                    {
+                        if (symbol == "ε") // epsilon case
+                        {
+                            if (first[A].Add("ε"))
+                                changed = true;
+                            break;
+                        }
+                        else if (!rules.ContainsKey(symbol)) // Terminal
+                        {
+                            if (first[A].Add(symbol))
+                                changed = true;
+                            break;
+                        }
+                        else // Non-terminal
+                        {
+                            var prevCount = first[A].Count;
+                            // Add FIRST(symbol) to FIRST(A), except ε
+                            first[A].UnionWith(first[symbol].Where(s => s != "ε"));
+                            if (first[A].Count != prevCount)
+                                changed = true;
+
+                            if (!first[symbol].Contains("ε"))
+                                break; // Stop if ε is not in FIRST(symbol)
+                        }
+                    }
+
+                    // Check if all symbols in production can derive ε
+                    bool allEpsilon = true;
+                    foreach (string symbol in symbols)
+                    {
+                        if (symbol == "ε") continue;
+                        if (!rules.ContainsKey(symbol)) // Terminal
+                        {
+                            allEpsilon = false;
+                            break;
+                        }
+                        else if (!first[symbol].Contains("ε"))
+                        {
+                            allEpsilon = false;
+                            break;
+                        }
+                    }
+                    // If all symbols can produce ε, add ε to FIRST(A)
+                    if (allEpsilon && first[A].Add("ε"))
+                        changed = true;
+                }
+            }
+        } while (changed); // Repeat until no changes
+
+        return first;
+    }
+
+    // Compute FOLLOW sets using FIRST sets
+    public Dictionary<string, HashSet<string>> ComputeFollowSets(Dictionary<string, HashSet<string>> first)
+    {
+        var follow = new Dictionary<string, HashSet<string>>();
+
+        // Initialize follow sets
+        foreach (var nonTerminal in rules.Keys)
+        {
+            follow[nonTerminal] = new HashSet<string>();
+        }
+
+        follow[startSymbol].Add("$"); // Start symbol gets '$'
+
+        bool changed;
+        do
+        {
+            changed = false;
+
+            foreach (var rule in rules)
+            {
+                string A = rule.Key;
+
+                foreach (var production in rule.Value)
+                {
+                    string[] symbols = production.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    for (int i = 0; i < symbols.Length; i++)
+                    {
+                        if (!rules.ContainsKey(symbols[i])) continue; // Skip terminals
+
+                        string B = symbols[i];
+
+                        // Case 1: Symbol is followed by another
+                        if (i < symbols.Length - 1)
+                        {
+                            string nextSymbol = symbols[i + 1];
+
+                            if (!rules.ContainsKey(nextSymbol)) // Terminal after B
+                            {
+                                if (follow[B].Add(nextSymbol))
+                                    changed = true;
+                            }
+                            else // Non-terminal after B
+                            {
+                                var prevCount = follow[B].Count;
+                                // Add FIRST(nextSymbol) to FOLLOW(B), excluding ε
+                                follow[B].UnionWith(first[nextSymbol].Where(s => s != "ε"));
+                                if (follow[B].Count != prevCount)
+                                    changed = true;
+
+                                // If nextSymbol can derive ε, add FOLLOW(A) to FOLLOW(B)
+                                if (first[nextSymbol].Contains("ε"))
+                                {
+                                    prevCount = follow[B].Count;
+                                    follow[B].UnionWith(follow[A]);
+                                    if (follow[B].Count != prevCount)
+                                        changed = true;
+                                }
+                            }
+                        }
+
+                        // Case 2: B is last in production → add FOLLOW(A) to FOLLOW(B)
+                        if (i == symbols.Length - 1)
+                        {
+                            var prevCount = follow[B].Count;
+                            follow[B].UnionWith(follow[A]);
+                            if (follow[B].Count != prevCount)
+                                changed = true;
+                        }
+                    }
+                }
+            }
+        } while (changed); // Repeat until no changes
+
+        return follow;
+    }
+}
+
+// Main method to test grammar analysis
+class Program
+{
+    static void Main()
+    {
+        GrammarAnalyzer analyzer = new GrammarAnalyzer();
+
+        // Add grammar rules (hardcoded as per question)
+        analyzer.AddRule("E → T X");
+        analyzer.AddRule("X → + T X | ε");
+        analyzer.AddRule("T → int | ( E )");
+
+        // Check for left recursion
+        if (analyzer.HasLeftRecursion())
+        {
+            Console.WriteLine("Grammar invalid for top-down parsing.");
+            return;
+        }
+
+        try
+        {
+            // Compute FIRST and FOLLOW sets
+            var firstSets = analyzer.ComputeFirstSets();
+            var followSets = analyzer.ComputeFollowSets(firstSets);
+
+            // Display FIRST sets
+            Console.WriteLine("FIRST Sets:");
+            foreach (var set in firstSets)
+            {
+                Console.WriteLine($"FIRST({set.Key}) = {{ {string.Join(", ", set.Value)} }}");
+            }
+
+            // Display FOLLOW sets
+            Console.WriteLine("\nFOLLOW Sets:");
+            foreach (var set in followSets)
+            {
+                Console.WriteLine($"FOLLOW({set.Key}) = {{ {string.Join(", ", set.Value)} }}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+    }
+}
