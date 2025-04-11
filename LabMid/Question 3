@@ -1,0 +1,108 @@
+using System;
+using System.Collections.Generic;
+
+// Class to represent the Symbol Table
+class SymbolTable
+{
+    // Inner class to store information about each variable (symbol)
+    class SymbolEntry
+    {
+        public string VariableName { get; set; }  // Name of the variable
+        public string Type { get; set; }          // Data type (int, float, etc.)
+        public string Value { get; set; }         // Value assigned to the variable
+        public int LineNumber { get; set; }       // Line number in source code
+    }
+
+    // List to store all valid entries
+    private List<SymbolEntry> entries = new List<SymbolEntry>();
+    
+    // Check if a string has any palindrome substring of length ≥ 3
+    private bool HasPalindromeSubstring(string str)
+    {
+        for (int i = 0; i <= str.Length - 3; i++)
+        {
+            for (int j = i + 3; j <= str.Length; j++)
+            {
+                string substring = str.Substring(i, j - i);
+                if (IsPalindrome(substring))
+                {
+                    return true;  // Found a valid palindrome substring
+                }
+            }
+        }
+        return false;  // No valid palindrome found
+    }
+    
+    // Helper method to check if a string is a palindrome
+    private bool IsPalindrome(string s)
+    {
+        for (int i = 0; i < s.Length / 2; i++)
+        {
+            if (s[i] != s[s.Length - 1 - i])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    // Add a new variable entry if it has a palindrome substring in the name
+    public void AddEntry(string input, int lineNumber)
+    {
+        // Split the input like "int val33 = 999;" into parts: ["int", "val33", "999"]
+        var parts = input.Split(new[] {' ', '=', ';'}, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3) return;  // Not a valid variable declaration
+        
+        string type = parts[0];      // Data type
+        string varName = parts[1];   // Variable name
+        string value = parts[2];     // Value
+        
+        // Check if the variable name contains a palindrome substring
+        if (HasPalindromeSubstring(varName))
+        {
+            // Add the entry to the symbol table
+            entries.Add(new SymbolEntry
+            {
+                VariableName = varName,
+                Type = type,
+                Value = value,
+                LineNumber = lineNumber
+            });
+            Console.WriteLine($"Added: {varName} (Line {lineNumber})");
+        }
+        else
+        {
+            // Reject if no palindrome substring found
+            Console.WriteLine($"Rejected: {varName} doesn't contain a palindrome substring of length ≥ 3");
+        }
+    }
+    
+    // Display the contents of the symbol table
+    public void DisplaySymbolTable()
+    {
+        Console.WriteLine("\nSymbol Table:");
+        Console.WriteLine("Variable Name\tType\tValue\tLine Number");
+        Console.WriteLine("----------------------------------------");
+        foreach (var entry in entries)
+        {
+            Console.WriteLine($"{entry.VariableName}\t\t{entry.Type}\t{entry.Value}\t{entry.LineNumber}");
+        }
+    }
+}
+
+// Main program to test the Symbol Table
+class Program
+{
+    static void Main()
+    {
+        SymbolTable symbolTable = new SymbolTable();
+        
+        // Sample inputs
+        symbolTable.AddEntry("int val33 = 999;", 1);    // Contains palindrome 'l33'
+        symbolTable.AddEntry("float abba = 3.14;", 2);  // Contains palindrome 'abba'
+        symbolTable.AddEntry("string no_pal = 'text';", 3); // No palindrome, should be rejected
+        
+        // Show the final symbol table
+        symbolTable.DisplaySymbolTable();
+    }
+}
